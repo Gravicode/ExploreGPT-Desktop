@@ -1,0 +1,80 @@
+﻿@page "/edit"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@inject IOpenAIService openAiService
+<h3>Edit API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form">
+                <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="InputPrompt" Required="true" RequiredError="please type input!" />
+                <MudTextField T="string" Label="Instruction" @bind-Value="Instruction" Required="true" RequiredError="please give instruction!" />
+                <MudTextField T="int" Label="How many completion (N)" @bind-Value="NCompletion" Required="true" RequiredError="please specify N!" />
+                <MudSelect T="string" @bind-Value="SelectedModel" Label="Models" AnchorOrigin="Origin.BottomCenter">
+                
+                    <MudSelectItem Value="@(Models.TextEditDavinciV1)" />
+                    <MudSelectItem Value="@(Models.CodeEditDavinciV1)" />
+                  
+
+                </MudSelect>
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="@(()=>Submit())">Submit</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="@(()=>Reset())" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+                @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+@code {
+    string SelectedModel = Models.TextEditDavinciV1;
+    string InputPrompt = "this car is modern, it has portable charger, the maximum speed is 300 km/h, it has better AI than Tesla.";
+    string Instruction = "Change car to bike";
+    bool success;
+    List<string> results = new();
+    int NCompletion = 2;
+    MudForm form;
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+    }
+    async Task Submit()
+    {
+        var completionResult = await openAiService.Edit.CreateEdit(new EditCreateRequest()
+            {
+                Model = SelectedModel,
+                Input = InputPrompt,
+                N = NCompletion,
+                Instruction = Instruction
+            });
+
+        if (completionResult.Successful)
+        {
+            foreach (var choice in completionResult.Choices)
+            {
+
+                var res = choice.Text;
+                Console.Write(res);
+                results.Add(res);
+
+            }
+        }
+        else
+        {
+            Console.Write(completionResult.Error.Message);
+            results.Add(completionResult.Error.Message);
+        }
+
+    }
+
+
+}

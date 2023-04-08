@@ -1,0 +1,200 @@
+﻿@page "/chat"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@inject IOpenAIService openAiService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+<h3>Chat GPT API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form">
+                <MudSelect T="MessageSources" @bind-Value="SelectedSource" Label="Source" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="MessageSources.User" />
+                    <MudSelectItem Value="MessageSources.Assistant" />
+                    <MudSelectItem Value="MessageSources.System" />
+                </MudSelect>
+                <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="InputPrompt" Required="true" RequiredError="please type prompt!" />
+                <MudTextField T="int" Label="Max Token" @bind-Value="MaxToken" Required="true" RequiredError="please specify max token!" />
+                <MudSelect T="string" @bind-Value="SelectedModel" Label="Models" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="@(Models.ChatGpt3_5Turbo)" />
+                    <MudSelectItem Value="@(Models.ChatGpt3_5Turbo0301)" />
+                </MudSelect>
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" DisableElevation="true" OnClick="AddMessage">Add Message</MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="Submit">Process</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+            @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="12">
+        <MudTable Context="item" Items="@Messages" Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped" Filter="new Func<ChatItem,bool>(FilterFunc1)" @bind-SelectedItem="selectedItem1">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Prompt Chat Message</MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="searchString1" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Source</MudTh>
+                <MudTh>Message</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Source">@item.Source</MudTd>
+                <MudTd DataLabel="Message">@item.Message</MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudButton ButtonType="ButtonType.Button" @onclick="(() => PrepareForDelete(item))" DisableElevation="true" Variant="Variant.Filled" Color="Color.Error" Class="mr-2">Hapus</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+
+        <div class="d-flex flex-wrap mt-4">
+            <MudSwitch @bind-Checked="@hover" Color="Color.Primary">Hover</MudSwitch>
+            <MudSwitch @bind-Checked="@dense" Color="Color.Secondary">Dense</MudSwitch>
+            <MudSwitch @bind-Checked="@striped" Color="Color.Tertiary">Striped</MudSwitch>
+            <MudSwitch @bind-Checked="@bordered" Color="Color.Warning">Bordered</MudSwitch>
+        </div>
+    </MudItem>
+</MudGrid>
+@code {
+    List<ChatItem> Messages = new();
+    string SelectedModel = Models.ChatGpt3_5Turbo;
+    ChatItem itemObject = new ChatItem();
+    bool success;
+    List<string>
+    results = new();
+    int MaxToken = 50;
+    MudForm form;
+    MessageSources SelectedSource = MessageSources.User;
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string searchString1 = "";
+    private ChatItem selectedItem1 = null;
+    string InputPrompt;
+    private HashSet<ChatItem> selectedItems = new HashSet<ChatItem>();
+
+    private bool FilterFunc1(ChatItem element) => FilterFunc(element, searchString1);
+
+    private bool FilterFunc(ChatItem element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (element.Message.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
+    async Task AddMessage()
+    {
+        if (!string.IsNullOrEmpty(InputPrompt))
+        {
+            Messages.Add(new ChatItem() { Message = InputPrompt, Source = SelectedSource });
+            InputPrompt = string.Empty;
+        }
+
+    }
+    private async Task PrepareForDelete(ChatItem item)
+    {
+        itemObject = item;
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<ConfirmDialog>("Konfirmasi", options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            var task = Messages.Remove(item);
+            //await jsRuntime.InvokeAsync<object>("CloseModal", "confirmDeleteModal");
+            itemObject = new ChatItem() { };
+        }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        Messages.Add(new ChatItem() { Source = MessageSources.System, Message = "You are a helpful assistant." });
+        Messages.Add(new ChatItem() { Source = MessageSources.User, Message = "Who won the world series in 2020?" });
+        Messages.Add(new ChatItem() { Source = MessageSources.Assistant, Message = "The Los Angeles Dodgers won the World Series in 2020." });
+        Messages.Add(new ChatItem() { Source = MessageSources.User, Message = "Where was it played?" });
+
+    }
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+        Messages.Clear();
+        MaxToken = 50;
+        SelectedModel = Models.ChatGpt3_5Turbo;
+    }
+    async Task Submit()
+    {
+        if (Messages.Count <= 0)
+        {
+            Snackbar.Add("Please input message first", Severity.Warning);
+
+            return;
+        }
+        var ListMessage = new List<ChatMessage>();
+        Messages.ForEach(x =>
+        {
+            switch (x.Source)
+            {
+                case MessageSources.Assistant:
+                    ListMessage.Add(ChatMessage.FromAssistant(x.Message));
+                    break;
+                case MessageSources.User:
+                    ListMessage.Add(ChatMessage.FromUser(x.Message));
+                    break;
+                case MessageSources.System:
+                    ListMessage.Add(ChatMessage.FromSystem(x.Message));
+                    break;
+            }
+        });
+        var completionResult = openAiService.ChatCompletion.CreateCompletionAsStream(new ChatCompletionCreateRequest
+        {
+            Messages = ListMessage,
+            Model = SelectedModel,
+            MaxTokens = MaxToken//optional
+        });
+        var message = string.Empty;
+        results.Add(message);
+        await foreach (var completion in completionResult)
+        {
+            if (completion.Successful)
+            {
+                var res = completion.Choices.FirstOrDefault()?.Message.Content;
+                Console.Write(res);
+                message += res;
+            }
+            else
+            {
+                if (completion.Error == null)
+                {
+                    throw new Exception("Unknown Error");
+                }
+                var res = $"{completion.Error.Code}: {completion.Error.Message}";
+                Console.WriteLine(res);
+                message += res;
+            }
+            results[results.Count - 1] = message;
+            StateHasChanged();
+            await Task.Delay(1);
+        }
+
+
+    }
+
+}

@@ -1,0 +1,76 @@
+﻿@page "/moderation"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@inject IOpenAIService openAiService
+<h3>Moderation API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form">
+                <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="InputPrompt" Required="true" RequiredError="please type prompt!" />
+              
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="Submit">Submit</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+                @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+@code {
+    string SelectedModel = "text-moderation-001";
+    string InputPrompt = "I hate black man, woman are not deserved to be a leader, man always win, the best religion is atheist";
+    bool success;
+    List<string> results = new();
+    MudForm form;
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+    }
+    async Task Submit()
+    {
+        var param = new CreateModerationRequest()
+        {
+
+
+        };
+        if (InputPrompt.Contains(','))
+        {
+            param.InputAsList = InputPrompt.Split(',').ToList();
+        }
+        else
+        {
+            param.Input = InputPrompt;
+        }
+        var completionResult = await openAiService.Moderation.CreateModeration(param);
+
+        if (completionResult.Successful)
+        {
+            var index = 0;
+            foreach (var data in completionResult.Results)
+            {
+
+                var res = $"[sentence-{index++}] => categories:{data.Categories}, score: {data.CategoryScores}, flagged:{ data.Flagged}";
+                Console.WriteLine(res);
+                results.Add(res);
+            }
+        }
+        else
+        {
+            var res = completionResult.Error.Message;
+            Console.WriteLine(res);
+            results.Add(res);
+        }
+    }
+
+}

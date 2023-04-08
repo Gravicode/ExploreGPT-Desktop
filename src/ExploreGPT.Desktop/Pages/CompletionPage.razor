@@ -1,0 +1,126 @@
+﻿@page "/completion"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@inject IOpenAIService openAiService
+<h3>Completion API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form">
+                <MudTextField T="string" Label="Prompt" Lines="5"  @bind-Value="InputPrompt" Required="true" RequiredError="please type prompt!" />
+                <MudTextField T="int" Label="Max Token" @bind-Value="MaxToken" Required="true" RequiredError="please specify max token!" />
+                <MudSelect T="string" @bind-Value="SelectedModel" Label="Models" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="@(Models.Ada)" />
+                    <MudSelectItem Value="@(Models.Babbage)" />
+                    <MudSelectItem Value="@(Models.Curie)" />
+                    <MudSelectItem Value="@(Models.Davinci)" />
+                    <MudSelectItem Value="@(Models.TextAdaV1)" />
+                    <MudSelectItem Value="@(Models.TextBabbageV1)" />
+                    <MudSelectItem Value="@(Models.TextCurieV1)" />
+                    <MudSelectItem Value="@(Models.TextDavinciV1)" />
+                    <MudSelectItem Value="@(Models.TextDavinciV2)" />
+                    <MudSelectItem Value="@(Models.TextDavinciV3)" />
+                    <MudSelectItem Value="@(Models.CurieInstructBeta)" />
+                    <MudSelectItem Value="@(Models.DavinciInstructBeta)" />
+                    <MudSelectItem Value="@(Models.CurieSimilarityFast)" />
+                    <MudSelectItem Value="@(Models.TextSimilarityAdaV1)" />
+                    <MudSelectItem Value="@(Models.TextSimilarityBabbageV1)" />
+                    <MudSelectItem Value="@(Models.TextSimilarityCurieV1)" />
+                    <MudSelectItem Value="@(Models.TextSimilarityDavinciV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchAdaDocV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchBabbageDocV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchCurieDocV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchDavinciDocV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchAdaQueryV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchBabbageQueryV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchCurieQueryV1)" />
+                    <MudSelectItem Value="@(Models.TextSearchDavinciQueryV1)" />
+                    <MudSelectItem Value="@(Models.TextEditDavinciV1)" />
+                    <MudSelectItem Value="@(Models.CodeEditDavinciV1)" />
+                    <MudSelectItem Value="@(Models.CodeSearchAdaCodeV1)" />
+                    <MudSelectItem Value="@(Models.CodeSearchBabbageCodeV1)" />
+                    <MudSelectItem Value="@(Models.CodeSearchAdaTextV1)" />
+                    <MudSelectItem Value="@(Models.CodeSearchBabbageTextV1)" />
+                    <MudSelectItem Value="@(Models.CodeDavinciV1)" />
+                    <MudSelectItem Value="@(Models.CodeCushmanV1)" />
+                    <MudSelectItem Value="@(Models.CodeDavinciV2)" />
+                </MudSelect>
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="Submit">Submit</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+                @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+@code {
+    string SelectedModel = Models.TextDavinciV3;
+    string InputPrompt = "Neural network adalah ";
+    bool success;
+    List<string> results = new();
+    int MaxToken = 50;
+    MudForm form;
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+    }
+    async Task Submit()
+    {
+        var completionResult = openAiService.Completions.CreateCompletionAsStream(new CompletionCreateRequest()
+            {
+                Prompt = InputPrompt,
+                Model = SelectedModel,
+                MaxTokens = MaxToken
+            });
+        var message = string.Empty;
+        results.Add(message);
+        await foreach (var completion in completionResult)
+        {
+            if (completion.Successful)
+            {
+                var res = completion.Choices.FirstOrDefault()?.Text;
+                Console.Write(res);
+                message += res;
+            }
+            else
+            {
+                if (completion.Error == null)
+                {
+                    throw new Exception("Unknown Error");
+                }
+                var res = $"{completion.Error.Code}: {completion.Error.Message}";
+                Console.WriteLine(res);
+                message += res;
+            }
+            results[results.Count - 1] = message;
+            StateHasChanged();
+            await Task.Delay(1);
+        }
+        /*
+        if (completionResult.Successful)
+        {
+            var res = completionResult.Choices.FirstOrDefault().ToString();
+            Console.WriteLine(res);
+            results.Add(res);
+        }
+        else
+        {
+            if (completionResult.Error == null)
+            {
+                throw new Exception("Unknown Error");
+            }
+            Console.WriteLine($"{completionResult.Error.Code}: {completionResult.Error.Message}");
+        }*/
+    }
+
+}

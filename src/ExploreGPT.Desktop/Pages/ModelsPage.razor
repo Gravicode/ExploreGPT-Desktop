@@ -1,0 +1,71 @@
+﻿@page "/models"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@using OpenAI.GPT3.ObjectModels.ResponseModels.ModelResponseModels;
+@inject IOpenAIService openAiService
+<h3>Models API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudForm @ref="form">
+                <MudSelect T="string" @bind-Value="SelectedModel" Label="Models" AnchorOrigin="Origin.BottomCenter">
+                    @foreach(var model in ListModel)
+                    {
+                        <MudSelectItem Value="@(model.Id)" />
+                    }
+               
+                   
+                </MudSelect>    
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="@(()=>Submit())">Submit</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="@(()=>Reset())" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+                @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+@code {
+    string SelectedModel = "";
+    bool success;
+    List<string> results = new();
+    int MaxToken = 50;
+    MudForm form;
+    List<ModelResponse> ListModel = new();
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        var models = await openAiService.Models.ListModel();
+        if (models.Successful)
+        {
+            ListModel = models.Models;
+        }
+    }
+    async Task Submit()
+    {
+        var completionResult = await openAiService.Models.RetrieveModel(SelectedModel);
+        var message = string.Empty;
+        if(completionResult.Successful)
+        results.Add($"Id: {completionResult.Id}, owner: { completionResult.Owner}, created: {completionResult.CreatedTime}, parent: {completionResult.Parent}, root:{completionResult.Root}");
+        else
+        {
+            var res = completionResult.Error.Message;
+            Console.WriteLine(res);
+            results.Add(res);
+        }
+    }
+
+
+}

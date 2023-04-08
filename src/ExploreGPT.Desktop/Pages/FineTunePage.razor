@@ -1,0 +1,330 @@
+﻿@page "/fine-tune"
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@inject IOpenAIService openAiService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+<h3>Fine Tune API</h3>
+<MudGrid>
+    <MudItem xs="12" sm="7">
+        <MudPaper Class="pa-4">
+            <MudText Typo="Typo.h6">Dataset Preparation</MudText>
+            <MudForm @ref="form">
+                <MudSelect T="FineTuneCases" @bind-Value="SelectedCase" Label="Case" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (FineTuneCases item in Enum.GetValues(typeof(FineTuneCases)))
+                    {
+                        <MudSelectItem Value="item" />
+                    }
+                </MudSelect>
+                <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="InputPrompt" Required="true" RequiredError="please type prompt!" />
+                <MudTextField T="string" Label="Completion" Lines="5" @bind-Value="Completion" Required="true" RequiredError="please type completion!" />
+
+          
+            </MudForm>
+            <MudText Typo="Typo.h6">Dataset Training</MudText>
+            <MudForm @ref="form2">
+                <MudSelect T="OpenAI.GPT3.ObjectModels.SharedModels.FileResponse" @bind-Value="SelectedFile" Label="Json File" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var item in JsonFiles)
+                    {
+                        <MudSelectItem Value="item">@item.FileName</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="string" @bind-Value="SelectedModel" Label="Models" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="@(Models.Davinci)" />
+                    <MudSelectItem Value="@(Models.Curie)" />
+                    <MudSelectItem Value="@(Models.Babbage)" />
+                    <MudSelectItem Value="@(Models.Ada)" />
+                </MudSelect>
+            </MudForm>
+            <MudText Typo="Typo.h6">Test Model</MudText>
+            <MudForm @ref="form3">
+                <MudSelect T="OpenAI.GPT3.ObjectModels.ResponseModels.FineTuneResponseModels.FineTuneResponse" @bind-Value="SelectedFineTune" Label="Fine Tune Model" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var item in ListModels)
+                    {
+                        <MudSelectItem Value="item">@item.FineTunedModel</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="TestPrompt" Required="true" RequiredError="please type prompt!" />
+                <MudTextField T="int" Label="Max Token" @bind-Value="MaxToken" Required="true" RequiredError="please specify max token!" />
+
+
+            </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DisableElevation="true" OnClick="AddMessage">Add Data</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Info" DisableElevation="true" OnClick="UploadFile">Upload File</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" DisableElevation="true" OnClick="TrainingModel">Train Model</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="Submit">Test</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset" Class="mx-2">Reset</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="5">
+        <MudPaper Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
+            @foreach (var result in results)
+            {
+                <MudText Color="@Color.Success">@result</MudText>
+            }
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="12">
+        <MudTable Context="item" Items="@Messages" Dense="@dense" Hover="@hover" Bordered="@bordered" Striped="@striped" Filter="new Func<FineTuneData, bool>(FilterFunc1)" @bind-SelectedItem="selectedItem1">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Fine Tune Data</MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="searchString1" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Prompt</MudTh>
+                <MudTh>Completion</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Prompt">@item.Prompt</MudTd>
+                <MudTd DataLabel="Completion">@item.Completion</MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudButton ButtonType="ButtonType.Button" @onclick="(() => PrepareForDelete(item))" DisableElevation="true" Variant="Variant.Filled" Color="Color.Error" Class="mr-2">Hapus</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+
+        <div class="d-flex flex-wrap mt-4">
+            <MudSwitch @bind-Checked="@hover" Color="Color.Primary">Hover</MudSwitch>
+            <MudSwitch @bind-Checked="@dense" Color="Color.Secondary">Dense</MudSwitch>
+            <MudSwitch @bind-Checked="@striped" Color="Color.Tertiary">Striped</MudSwitch>
+            <MudSwitch @bind-Checked="@bordered" Color="Color.Warning">Bordered</MudSwitch>
+        </div>
+    </MudItem>
+</MudGrid>
+@code {
+    List<FineTuneData> Messages = new();
+    OpenAI.GPT3.ObjectModels.SharedModels.FileResponse SelectedFile;
+    OpenAI.GPT3.ObjectModels.ResponseModels.FineTuneResponseModels.FineTuneResponse SelectedFineTune;
+
+    string SelectedModel = Models.Ada;
+    FineTuneData itemObject = new FineTuneData();
+    bool success;
+    List<string>
+    results = new();
+    int MaxToken = 50;
+    MudForm form,form2,form3;
+    FineTuneCases _SelectedCase = FineTuneCases.ClassificationSentiment;
+    FineTuneCases SelectedCase
+    {
+        set
+        {
+            _SelectedCase = value;
+            GenerateSample();
+        }
+        get
+        {
+            return _SelectedCase;
+        }
+    }
+    private bool dense = false;
+    private bool hover = true;
+    private bool striped = false;
+    private bool bordered = false;
+    private string searchString1 = "";
+    private FineTuneData selectedItem1 = null;
+    string InputPrompt,TestPrompt;
+    string Completion;
+
+    void GenerateSample()
+    {
+        switch (SelectedCase)
+        {
+            case FineTuneCases.ClassificationYesNo:
+                InputPrompt = "Company: Loft conversion specialists\nProduct: -\nAd:Straight teeth in weeks!\nSupported:";
+                Completion = " no";
+                break;
+            case FineTuneCases.ClassificationSentiment:
+                InputPrompt = "Overjoyed with the new iPhone! ->";
+                Completion = " positive";
+                break;
+            case FineTuneCases.ClassificationNumericalCategory:
+                InputPrompt = "Subject: Update my address\nFrom:Joe Doe\nTo:support@ourcompany.com\nDate:2021-06-03\nContent:Hi,\nI would like to update my billing address to match my delivery address.\n\nPlease let me know once done.\n\nThanks,\nJoe\n\n###\n\n";
+                Completion = " 4";
+                break;
+            case FineTuneCases.GenerationCustomerSupport:
+                InputPrompt = "Summary: <summary of the interaction so far>\n\nSpecific information:<for example order details in natural language>\n\n###\n\nCustomer: <message1>\nAgent: <response1>\nCustomer: <message2>\nAgent: <response2>\nCustomer: <message3>\nAgent:";
+                Completion = " <response3>\n";
+                break;
+            case FineTuneCases.GenerationEntityExtraction:
+                InputPrompt = "Portugal will be removed from the UK's green travel list from Tuesday, amid rising coronavirus cases and concern over a \"Nepal mutation of the so-called Indian variant\". It will join the amber list, meaning holidaymakers should not visit and returnees must isolate for 10 days...\n\n###\n\n";
+                Completion = " Portugal\nUK\nNepal mutation\nIndian variant END";
+                break;
+            case FineTuneCases.GenerationProductDesc:
+                InputPrompt = "Item is a handbag. Colour is army green. Price is midrange. Size is small.->";
+                Completion = " This stylish small green handbag will add a unique touch to your look, without costing you a fortune.";
+                break;
+            case FineTuneCases.GenerationWriteAds:
+                InputPrompt = "Samsung Galaxy Feel\nThe Samsung Galaxy Feel is an Android smartphone developed by Samsung Electronics exclusively for the Japanese market. The phone was released in June 2017 and was sold by NTT Docomo. It runs on Android 7.0 (Nougat), has a 4.7 inch display, and a 3000 mAh battery.\nSoftware\nSamsung Galaxy Feel runs on Android 7.0 (Nougat), but can be later updated to Android 8.0 (Oreo).\nHardware\nSamsung Galaxy Feel has a 4.7 inch Super AMOLED HD display, 16 MP back facing and 5 MP front facing cameras. It has a 3000 mAh battery, a 1.6 GHz Octa-Core ARM Cortex-A53 CPU, and an ARM Mali-T830 MP1 700 MHz GPU. It comes with 32GB of internal storage, expandable to 256GB via microSD. Aside from its software and hardware specifications, Samsung also introduced a unique a hole in the phone's shell to accommodate the Japanese perceived penchant for personalizing their mobile phones. The Galaxy Feel's battery was also touted as a major selling point since the market favors handsets with longer battery life. The device is also waterproof and supports 1seg digital broadcasts using an antenna that is sold separately.\n\n###\n\n";
+                Completion = " Looking for a smartphone that can do it all? Look no further than Samsung Galaxy Feel! With a slim and sleek design, our latest smartphone features high-quality picture and video capabilities, as well as an award winning battery life. END";
+                break;
+        }
+    }
+    private HashSet<FineTuneData> selectedItems = new HashSet<FineTuneData>();
+
+    private bool FilterFunc1(FineTuneData element) => FilterFunc(element, searchString1);
+
+    private bool FilterFunc(FineTuneData element, string searchString)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (element.Prompt.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (element.Completion.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+    List<OpenAI.GPT3.ObjectModels.SharedModels.FileResponse> JsonFiles = new List<OpenAI.GPT3.ObjectModels.SharedModels.FileResponse>();
+    async Task RefreshFiles()
+    {
+        var files = await openAiService.Files.ListFile();
+
+        if (files.Successful)
+        {
+            JsonFiles = files.Data;
+        }
+    }
+    List<OpenAI.GPT3.ObjectModels.ResponseModels.FineTuneResponseModels.FineTuneResponse> ListModels = new List<OpenAI.GPT3.ObjectModels.ResponseModels.FineTuneResponseModels.FineTuneResponse>();
+
+    async Task RefreshModel()
+    {
+        var models = await openAiService.FineTunes.ListFineTunes();
+
+        if (models.Successful)
+        {
+            ListModels = models.Data;
+        }
+    }
+    async Task AddMessage()
+    {
+        if (!string.IsNullOrEmpty(InputPrompt))
+        {
+            Messages.Add(new FineTuneData() { Prompt = InputPrompt, Completion = Completion });
+            InputPrompt = string.Empty;
+            Completion = string.Empty;
+        }
+
+    }
+    private async Task PrepareForDelete(FineTuneData item)
+    {
+        itemObject = item;
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<ConfirmDialog>("Konfirmasi", options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            var task = Messages.Remove(item);
+            //await jsRuntime.InvokeAsync<object>("CloseModal", "confirmDeleteModal");
+            itemObject = new FineTuneData() { };
+        }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshFiles();
+        await RefreshModel();
+        GenerateSample();
+    }
+    async Task Reset()
+    {
+        form.Reset();
+        results.Clear();
+        Messages.Clear();
+        MaxToken = 50;
+        SelectedModel = Models.Ada;
+    }
+    async Task UploadFile()
+    {
+        if (Messages.Count <= 0)
+        {
+            Snackbar.Add("Please input prompt/completion first", Severity.Warning);
+
+            return;
+        }
+        var fName = $"{SelectedModel}_{SelectedCase}_{DateTime.Now.ToString("dd_MM_yyyy_HH_mm_ss")}.jsonl";
+        var json = Messages.ToJSON();
+        var fBytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        var uploadResult = await openAiService.Files.UploadFile("training-model", fBytes, fName);
+        if (uploadResult.Successful)
+        {
+            await RefreshFiles();
+            Snackbar.Add("Upload succeed", Severity.Warning);
+        }
+        else
+        {
+            Snackbar.Add($"Upload failed: {uploadResult.Error?.Message}", Severity.Warning);
+        }
+    }
+    async Task TrainingModel()
+    {
+        if (SelectedFile == null || SelectedModel == null)
+        {
+            Snackbar.Add("Please select model and file jsonl first", Severity.Warning);
+
+            return;
+        }
+
+
+        var trainResult = await openAiService.FineTunes.CreateFineTune(new FineTuneCreateRequest() { Model = SelectedModel, TrainingFile = SelectedFile.Id });
+        if (trainResult.Successful)
+        {
+            await RefreshModel();
+            Snackbar.Add("Train submitted", Severity.Warning);
+        }
+        else
+        {
+            Snackbar.Add($"Train failed: {trainResult.Error?.Message}", Severity.Warning);
+        }
+    }
+    async Task Submit()
+    {
+        if (string.IsNullOrEmpty(TestPrompt) || SelectedFineTune == null)
+        {
+            Snackbar.Add("Please input prompt/select fine tune first", Severity.Warning);
+
+            return;
+        }
+
+        var completionResult = openAiService.Completions.CreateCompletionAsStream(new CompletionCreateRequest()
+        {
+            Prompt = TestPrompt,
+            Model = SelectedFineTune.FineTunedModel,
+            MaxTokens = MaxToken
+        });
+        var message = string.Empty;
+        results.Add(message);
+        await foreach (var completion in completionResult)
+        {
+            if (completion.Successful)
+            {
+                var res = completion.Choices.FirstOrDefault()?.Text;
+                Console.Write(res);
+                message += res;
+            }
+            else
+            {
+                if (completion.Error == null)
+                {
+                    throw new Exception("Unknown Error");
+                }
+                var res = $"{completion.Error.Code}: {completion.Error.Message}";
+                Console.WriteLine(res);
+                message += res;
+            }
+            results[results.Count - 1] = message;
+            StateHasChanged();
+            await Task.Delay(1);
+        }
+        
+
+    }
+
+}
