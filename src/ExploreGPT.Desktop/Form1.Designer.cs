@@ -23,27 +23,28 @@
         ///  the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent() {
-            blazorWebView1 = new Microsoft.AspNetCore.Components.WebView.WindowsForms.BlazorWebView();
-            SuspendLayout();
+            this.blazorWebView1 = new Microsoft.AspNetCore.Components.WebView.WindowsForms.BlazorWebView();
+            this.SuspendLayout();
             // 
             // blazorWebView1
             // 
-            blazorWebView1.Dock = DockStyle.Fill;
-            blazorWebView1.Location = new Point(0, 0);
-            blazorWebView1.Name = "blazorWebView1";
-            blazorWebView1.Size = new Size(800, 450);
-            blazorWebView1.TabIndex = 0;
-            blazorWebView1.Text = "blazorWebView1";
+            this.blazorWebView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.blazorWebView1.Location = new System.Drawing.Point(0, 0);
+            this.blazorWebView1.Name = "blazorWebView1";
+            this.blazorWebView1.Size = new System.Drawing.Size(800, 450);
+            this.blazorWebView1.TabIndex = 0;
+            this.blazorWebView1.Text = "blazorWebView1";
             // 
             // Form1
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 450);
-            Controls.Add(blazorWebView1);
-            Name = "Form1";
-            Text = "Imaginator v1.0 by BMC";
-            ResumeLayout(false);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.blazorWebView1);
+            this.Name = "Form1";
+            this.Text = "Explore-GPT v1.0 by BMC";
+            this.ResumeLayout(false);
+
         }
 
         #endregion

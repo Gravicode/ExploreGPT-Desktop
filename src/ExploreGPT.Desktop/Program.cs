@@ -13,6 +13,7 @@ namespace ExploreGPT.Desktop {
             ApplicationConfiguration.Initialize();
             AppConstants.OpenAIKey = ConfigurationManager.AppSettings["OpenAIKey"];
             AppConstants.OrgID = ConfigurationManager.AppSettings["OrgID"];
+            AppConstants.TemplateDataset = ConfigurationManager.AppSettings["TemplateDataset"];
             Application.Run(new Form1());
 
            

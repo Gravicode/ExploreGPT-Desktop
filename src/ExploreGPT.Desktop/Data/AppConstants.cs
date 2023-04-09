@@ -10,6 +10,7 @@ namespace ExploreGPT.Desktop.Data {
         public static Form1 MainFrm { get; set; }
         public static string OpenAIKey = "";
         public static string OrgID = "";
+        public static string TemplateDataset = "";
     }
     public class FineTuneData
     {

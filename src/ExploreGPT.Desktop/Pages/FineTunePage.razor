@@ -1,9 +1,11 @@
 ﻿@page "/fine-tune"
 @using System.Text.RegularExpressions
 @using System.ComponentModel.DataAnnotations
+@using GemBox.Spreadsheet;
 @inject IOpenAIService openAiService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager NavMgr
 <h3>Fine Tune API</h3>
 <MudGrid>
     <MudItem xs="12" sm="7">
@@ -19,11 +21,32 @@
                 <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="InputPrompt" Required="true" RequiredError="please type prompt!" />
                 <MudTextField T="string" Label="Completion" Lines="5" @bind-Value="Completion" Required="true" RequiredError="please type completion!" />
 
-          
+
             </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DisableElevation="true" OnClick="AddMessage">Add Data</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset">Reset</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Info" DisableElevation="true" OnClick="UploadFile">Upload to OpenAI</MudButton>
+
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="DownloadTemplate" Class="mx-1">Download Template</MudButton>
+            <MudFileUpload T="IBrowserFile" FilesChanged="UploadDataset">
+                <ButtonTemplate>
+                    <MudButton HtmlTag="label"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                               for="@context">
+                        Upload Dataset
+                    </MudButton>
+                </ButtonTemplate>
+            </MudFileUpload>
+
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
             <MudText Typo="Typo.h6">Dataset Training</MudText>
             <MudForm @ref="form2">
-                <MudSelect T="OpenAI.GPT3.ObjectModels.SharedModels.FileResponse" @bind-Value="SelectedFile" Label="Json File" AnchorOrigin="Origin.BottomCenter">
+                <MudSelect T="OpenAI.GPT3.ObjectModels.SharedModels.FileResponse" @bind-Value="SelectedFile" Label="Dataset JsonL File" AnchorOrigin="Origin.BottomCenter">
                     @foreach (var item in JsonFiles)
                     {
                         <MudSelectItem Value="item">@item.FileName</MudSelectItem>
@@ -36,12 +59,18 @@
                     <MudSelectItem Value="@(Models.Ada)" />
                 </MudSelect>
             </MudForm>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DisableElevation="true" OnClick="TrainingModel">Train Model</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error" DisableElevation="true" OnClick="DeleteFile">Delete Dataset</MudButton>
+        </MudPaper>
+        <MudPaper Class="pa-4 mt-4">
             <MudText Typo="Typo.h6">Test Model</MudText>
             <MudForm @ref="form3">
                 <MudSelect T="OpenAI.GPT3.ObjectModels.ResponseModels.FineTuneResponseModels.FineTuneResponse" @bind-Value="SelectedFineTune" Label="Fine Tune Model" AnchorOrigin="Origin.BottomCenter">
                     @foreach (var item in ListModels)
                     {
-                        <MudSelectItem Value="item">@item.FineTunedModel</MudSelectItem>
+                        <MudSelectItem Value="item">@item.FineTunedModel [@item.Model] - (@item.Status)</MudSelectItem>
                     }
                 </MudSelect>
                 <MudTextField T="string" Label="Prompt" Lines="5" @bind-Value="TestPrompt" Required="true" RequiredError="please type prompt!" />
@@ -51,17 +80,14 @@
             </MudForm>
         </MudPaper>
         <MudPaper Class="pa-4 mt-4">
-            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" DisableElevation="true" OnClick="AddMessage">Add Data</MudButton>
-            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Info" DisableElevation="true" OnClick="UploadFile">Upload File</MudButton>
-            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" DisableElevation="true" OnClick="TrainingModel">Train Model</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" DisableElevation="true" OnClick="Submit">Test</MudButton>
-            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset" Class="mx-2">Reset</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary" DisableElevation="true" OnClick="Reset">Reset</MudButton>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" sm="5">
         <MudPaper Class="pa-4 mud-height-full">
             <MudText Typo="Typo.subtitle2">@($"Results ({results.Count})")</MudText>
-            @foreach (var result in results)
+                @foreach (var result in results)
             {
                 <MudText Color="@Color.Success">@result</MudText>
             }
@@ -110,7 +136,7 @@
     List<string>
     results = new();
     int MaxToken = 50;
-    MudForm form,form2,form3;
+    MudForm form, form2, form3;
     FineTuneCases _SelectedCase = FineTuneCases.ClassificationSentiment;
     FineTuneCases SelectedCase
     {
@@ -130,9 +156,73 @@
     private bool bordered = false;
     private string searchString1 = "";
     private FineTuneData selectedItem1 = null;
-    string InputPrompt,TestPrompt;
+    string InputPrompt, TestPrompt;
     string Completion;
+    private async Task UploadDataset(IBrowserFile file)
+    {
 
+        if (file != null)
+        {
+            var ms = new MemoryStream();
+            await file.OpenReadStream(AppConstants.MaxAllowedFileSize).CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            ms.Dispose();
+            var tempFile = Path.GetTempFileName() + ".xlsx";
+
+            File.WriteAllBytes(tempFile, bytes);
+
+            var hasil = UploadExcel(tempFile);
+            if (hasil)
+            {
+                Snackbar.Add("Uploda berhasil.", Severity.Success);
+                StateHasChanged();
+            }
+            else
+                Snackbar.Add("Upload gagal.", Severity.Error);
+        }
+    }
+
+    bool UploadExcel(string PathFile)
+    {
+
+        try
+        {
+            if (!File.Exists(PathFile)) return false;
+            var workbook = ExcelFile.Load(PathFile);
+
+
+            // Iterate through all worksheets in an Excel workbook.
+            var worksheet = workbook.Worksheets[0];
+            var counter = 0;
+            Messages.Clear();
+            // Iterate through all rows in an Excel worksheet.
+            foreach (var row in worksheet.Rows)
+            {
+                if (counter > 0)
+                {
+                    var newData = new FineTuneData();
+
+                    newData.Prompt = row.Cells[1].Value?.ToString();
+                    newData.Completion = row.Cells[2].Value?.ToString();
+
+                    Messages.Add(newData);
+                }
+                counter++;
+
+
+            }
+
+
+            return true;
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+
+        return false;
+    }
     void GenerateSample()
     {
         switch (SelectedCase)
@@ -240,6 +330,10 @@
         MaxToken = 50;
         SelectedModel = Models.Ada;
     }
+    async Task DownloadTemplate()
+    {
+        NavMgr.NavigateTo("/template/dataset.xlsx", true);
+    }
     async Task UploadFile()
     {
         if (Messages.Count <= 0)
@@ -252,22 +346,59 @@
         var json = Messages.ToJSON();
         var fBytes = System.Text.Encoding.UTF8.GetBytes(json);
 
-        var uploadResult = await openAiService.Files.UploadFile("training-model", fBytes, fName);
+        var uploadResult = await openAiService.Files.UploadFile("fine-tune", fBytes, fName);
+
         if (uploadResult.Successful)
         {
             await RefreshFiles();
-            Snackbar.Add("Upload succeed", Severity.Warning);
+            Snackbar.Add("Upload succeed", Severity.Success);
         }
         else
         {
             Snackbar.Add($"Upload failed: {uploadResult.Error?.Message}", Severity.Warning);
         }
     }
+    async Task DeleteFile()
+    {
+        if (SelectedFile == null)
+        {
+            Snackbar.Add("Please select dataset first", Severity.Warning);
+
+            return;
+        }
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = DialogService.Show<ConfirmDialog>("Konfirmasi", options);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            var cancelToken = new CancellationTokenSource();
+            var deleteResult = await openAiService.Files.DeleteFile(SelectedFile.Id, cancelToken.Token);
+
+            if (deleteResult.Successful)
+            {
+                await RefreshFiles();
+                Snackbar.Add("Delete succeed", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Delete failed: {deleteResult.Error?.Message}", Severity.Warning);
+            }
+        }
+    }
     async Task TrainingModel()
     {
+
         if (SelectedFile == null || SelectedModel == null)
         {
             Snackbar.Add("Please select model and file jsonl first", Severity.Warning);
+
+            return;
+        }
+        var ext = Path.GetExtension(SelectedFile.FileName);
+        if (ext.ToLower() != ".jsonl")
+        {
+            Snackbar.Add("Please select file with jsonl format", Severity.Warning);
 
             return;
         }
@@ -277,7 +408,7 @@
         if (trainResult.Successful)
         {
             await RefreshModel();
-            Snackbar.Add("Train submitted", Severity.Warning);
+            Snackbar.Add("Train submitted", Severity.Success);
         }
         else
         {
@@ -292,13 +423,18 @@
 
             return;
         }
-
-        var completionResult = openAiService.Completions.CreateCompletionAsStream(new CompletionCreateRequest()
+        if (SelectedFineTune.Status != "succeeded")
         {
-            Prompt = TestPrompt,
-            Model = SelectedFineTune.FineTunedModel,
-            MaxTokens = MaxToken
-        });
+            Snackbar.Add("Please wait till the model is ready to use", Severity.Warning);
+
+            return;
+        }
+        var completionResult = openAiService.Completions.CreateCompletionAsStream(new CompletionCreateRequest()
+            {
+                Prompt = TestPrompt,
+                Model = SelectedFineTune.FineTunedModel,
+                MaxTokens = MaxToken
+            });
         var message = string.Empty;
         results.Add(message);
         await foreach (var completion in completionResult)
@@ -323,7 +459,7 @@
             StateHasChanged();
             await Task.Delay(1);
         }
-        
+
 
     }
 

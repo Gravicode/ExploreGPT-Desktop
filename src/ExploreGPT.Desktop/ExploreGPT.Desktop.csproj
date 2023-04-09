@@ -14,5 +14,16 @@
 		<PackageReference Include="Betalgo.OpenAI.GPT3" Version="6.7.3" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
 	</ItemGroup>
+	<ItemGroup>
+		<Reference Include="GemBox.Document">
+			<HintPath>..\Dependencies\GemBox.Document.dll</HintPath>
+		</Reference>
+		<Reference Include="GemBox.Spreadsheet">
+			<HintPath>..\Dependencies\GemBox.Spreadsheet.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="wwwroot\template\" />
+	</ItemGroup>
 
 </Project>
